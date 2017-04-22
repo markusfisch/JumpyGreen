@@ -51,10 +51,15 @@ precision mediump float;
 
 varying vec2 textureUV;
 
+uniform vec2 resolution;
 uniform sampler2D texture;
 
 void main() {
-	gl_FragColor = texture2D(texture, textureUV.st).rgba;
+	vec2 st = gl_FragCoord.xy / resolution.xy;
+	float brightness = (st.x + st.y) / 2.;
+	gl_FragColor =
+		vec4(brightness, brightness, brightness, 1.) *
+		texture2D(texture, textureUV.st).rgba;
 }
 
 </script>
@@ -78,6 +83,8 @@ var M = Math,
 	perspectiveLoc,
 	transformation,
 	transformationLoc,
+	resolution,
+	resolutionLoc,
 	texture,
 	textureLoc,
 	program,
@@ -142,6 +149,7 @@ function initFrame() {
 		gl.FALSE,
 		perspective)
 
+	gl.uniform2fv(resolutionLoc, resolution)
 	gl.activeTexture(gl.TEXTURE0)
 	gl.bindTexture(gl.TEXTURE_2D, texture)
 	gl.uniform1i(textureLoc, 0)
@@ -265,6 +273,8 @@ function resize() {
 	gl.canvas.height = height
 	gl.viewport(0, 0, width, height)
 
+	resolution = new FA([width, height])
+
 	var ref = sprites[ROCK].size
 	scaleFactor = .45 / halfWidth *
 		M.min(width / 1.5 / ref, height / 1.5 / ref)
@@ -353,6 +363,7 @@ function initBuffers(program) {
 	texturePositionLoc = getEnabledAttribLocation(program, 'texturePosition')
 	perspectiveLoc = gl.getUniformLocation(program, 'perspective')
 	transformationLoc = gl.getUniformLocation(program, 'transformation')
+	resolutionLoc = gl.getUniformLocation(program, 'resolution')
 	textureLoc = gl.getUniformLocation(program, 'texture')
 }
 
