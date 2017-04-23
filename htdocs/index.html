@@ -100,8 +100,9 @@ var M = Math,
 	NAUT_WALKR5 = 26,
 	NAUT_WALKR6 = 27,
 	NAUT_WALKR7 = 28,
-	STAR = 29,
-	WORLD = 30,
+	SHOT = 29,
+	STAR = 30,
+	WORLD = 31,
 	atlas,
 	sprites = [],
 	gl,
@@ -135,6 +136,8 @@ var M = Math,
 	stars,
 	entitiesLength,
 	entities,
+	shotsLength,
+	shots,
 	player,
 	worldX,
 	worldY,
@@ -142,9 +145,12 @@ var M = Math,
 	worldA,
 	gravity,
 	jumpPower,
-	level = 12
+	step = .0314,
+	level = 1,
+	restartTimer
 
 M.TAU = M.TAU || M.PI * 2
+M.PI2 = M.PI2 || M.PI / 2
 
 function drawSprite(sprite, x, y, a, xm, ym) {
 	gl.bindBuffer(gl.ARRAY_BUFFER, texturePositionBuffer)
@@ -181,14 +187,160 @@ function drawSprite(sprite, x, y, a, xm, ym) {
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 }
 
+function nextLevel() {
+	if (restartTimer != null) {
+		return
+	}
+	function restart() {
+		if (worldY != 0) {
+			restartTimer = setTimeout(restart, 500)
+			return
+		}
+		initLevel(++level)
+		restartTimer = null
+	}
+	restartTimer = setTimeout(restart, 500)
+}
+
+function drawShots() {
+	var cos = M.cos(worldA),
+		sin = M.sin(worldA),
+		pa = player.a,
+		pr = worldR + player.r,
+		px = worldX + pr * M.cos(pa),
+		py = worldY + pr * M.sin(pa)
+	for (var i = shotsLength; i--;) {
+		var s = shots[i]
+		if (!s.fired) {
+			continue
+		}
+
+		s.x += s.vx * factor
+		s.y += s.vy * factor
+
+		var x = s.x,
+			y = s.y,
+			xx = cos * x + -sin * y,
+			yy = sin * x + cos * y
+
+		x = worldX + xx
+		y = worldY + yy
+
+		if (M.max(M.abs(x), M.abs(y)) > M.max(1, yMax)) {
+			s.fired = false
+			continue
+		}
+
+		drawSprite(
+			sprites[SHOT],
+			x,
+			y,
+			worldA + s.a)
+
+		var dx = px - x,
+			dy = py - y,
+			d = dx*dx + dy*dy
+		if (!player.lost && d < .0005) {
+			player.lost = true
+			player.tumble = .15
+			player.r += .01
+			s.fired = false
+		}
+	}
+}
+
+function normalizeAngle(a) {
+	return ((a % M.TAU) + M.TAU) % M.TAU
+}
+
+function angleDiff(a, b) {
+	var d = M.abs(b - a)
+	return M.min(d, M.TAU - d)
+}
+
+function realizePush() {
+	for (var i = entitiesLength; i--;) {
+		var e = entities[i]
+		if (e !== player && !e.lost) {
+			var a = normalizeAngle(worldA + e.a),
+				d = angleDiff(a, player.a + M.PI)
+			d = (M.PI - d) / M.PI
+			if (d > .85) {
+				e.lost = true
+				e.tumble = M.random() * .2 - .1
+			}
+			e.r = d * .2
+		}
+	}
+}
+
+function fire(x, y, vx, vy) {
+	for (var i = shotsLength; i--;) {
+		var s = shots[i]
+		if (s.fired) {
+			continue
+		}
+		s.x = x
+		s.y = y
+		s.vx = vx
+		s.vy = vy
+		s.a = M.atan2(vy, vx) + M.PI2
+		s.fired = true
+		return
+	}
+}
+
+function fireAtPlayer(x, y) {
+	var pa = player.a - worldA,
+		pr = worldR + player.r,
+		px = pr * M.cos(pa),
+		py = pr * M.sin(pa),
+		vx = px - x,
+		vy = py - y,
+		d = M.sqrt(vx*vx + vy*vy),
+		fireSpeed = .009
+	vx /= d
+	vy /= d
+	vx *= fireSpeed
+	vy *= fireSpeed
+	fire(x, y, vx, vy)
+}
+
 function drawEntities() {
-	var bump = false
+	var push = false,
+		allLost = true
 
 	for (var i = entitiesLength; i--;) {
 		var e = entities[i],
 			isPlayer = e === player,
 			r = worldR,
-			a = (isPlayer ? 0 : worldA) + e.a
+			a = e.a,
+			shoot = false
+
+		if (!isPlayer) {
+			a += worldA
+
+			if (e.r === 0 && !e.floating) {
+				e.walking = 0
+				var na = normalizeAngle(a),
+					seesAlien = angleDiff(na, player.a) < 1.2
+				if (seesAlien || e.hasSeenAlien) {
+					var d = na - player.a,
+						s = d > 0 ? -step : step
+					if (!player.lost && seesAlien &&
+							now - e.lastFire > 500) {
+						e.hasSeenAlien = true
+						e.walking = s
+						e.lastFire = now
+						shoot = true
+					}
+					if (M.abs(d) > .3) {
+						e.walking = s
+						e.a += s * .6
+					}
+				}
+			}
+		}
 
 		if (e.vy != 0) {
 			e.vy -= gravity * factor
@@ -197,7 +349,7 @@ function drawEntities() {
 				e.vy = e.r = 0
 				if (isPlayer) {
 					worldY += -.1
-					bump = true
+					push = true
 				}
 			} else {
 				r += e.r
@@ -218,29 +370,34 @@ function drawEntities() {
 			}
 		}
 
+		if (shoot) {
+			var ea = e.a
+			fireAtPlayer(
+				r * M.cos(ea),
+				r * M.sin(ea))
+		}
+
+		var x = worldX + r * M.cos(a),
+			y = worldY + r * M.sin(a)
+
+		if (!isPlayer && (!e.lost || M.abs(x) < 1 || M.abs(y) < yMax)) {
+			allLost = false
+		}
+
 		drawSprite(
 			sprites[e.sprite()],
-			worldX + r * M.cos(a),
-			worldY + r * M.sin(a),
+			x,
+			y,
 			a + e.rotation,
 			e.xm)
 	}
 
-	if (bump) {
-		for (var i = entitiesLength; i--;) {
-			var e = entities[i]
-			if (e !== player && !e.lost) {
-				var a = (((worldA + e.a) % M.TAU) + M.TAU) % M.TAU,
-					b = player.a + M.PI,
-					d = M.abs(b - a)
-				d = (M.PI - M.min(d, M.TAU - d)) / M.PI
-				if (d > .85) {
-					e.lost = true
-					e.tumble = M.random() * .2 - .1
-				}
-				e.r = d * .2
-			}
-		}
+	if (push) {
+		realizePush()
+	}
+
+	if (allLost && !restartTimer) {
+		nextLevel()
 	}
 
 	if (worldY != 0) {
@@ -289,7 +446,9 @@ function initFrame() {
 }
 
 function input() {
-	var step = .0314
+	if (player.lost) {
+		return
+	}
 
 	if (keysDown[37]) {
 		player.walking = step
@@ -301,8 +460,9 @@ function input() {
 		player.walking = 0
 	}
 
-	if (keysDown[38] && player.vy == 0) {
+	if (keysDown[38] && player.vy == 0 && now - player.lastJump > 1000) {
 		player.vy = jumpPower
+		player.lastJump = now
 	}
 }
 
@@ -318,6 +478,7 @@ function run() {
 	drawStars()
 	drawSprite(sprites[WORLD], worldX, worldY, worldA)
 	drawEntities()
+	drawShots()
 }
 
 function pageXToGl(x) {
@@ -394,20 +555,31 @@ function createEntity(
 		rotation: 0,
 		walking: 0,
 		frame: 0,
-		last: 0,
+		lastFrame: 0,
+		lastFire: 0,
+		lastJump: 0,
+		lost: false,
 		xm: 1,
 		sprite: function() {
 			var w = this.walking,
 				f = w != 0 ? 100 : 250
-			if (now - this.last > f) {
+			if (now - this.lastFrame > f) {
 				++this.frame
-				this.last = now
+				this.lastFrame = now
 			}
 
 			if (this.floating) {
-				return floating[this.frame % floatingLength]
-			} else if (worldY != 0 && player !== this) {
-				return balancing[this.frame % balancingLength]
+				if (floatingLength > 0) {
+					return floating[this.frame % floatingLength]
+				} else {
+					return idle[0]
+				}
+			} else if (worldY != 0 && player !== this && w === 0) {
+				if (balancingLength > 0) {
+					return balancing[this.frame % balancingLength]
+				} else {
+					return idle[0]
+				}
 			} else if (this.vy != 0) {
 				// just take the first walking sprite
 				this.frame = 0
@@ -455,17 +627,32 @@ function createAlien(angle) {
 }
 
 function initLevel(nauts) {
-	entities = [player = createAlien(M.PI * .5)]
-	for (var a = M.random() * M.TAU, i = nauts; i--; a += M.TAU / nauts) {
+	entities = [player = createAlien(M.PI2)]
+	for (var a = .25 + nauts * .1, i = nauts; i--; a += M.TAU / nauts) {
 		entities.push(createNaut(a))
 	}
 	entitiesLength = entities.length
 }
 
+function generateShots() {
+	shotsLength = 100
+	shots = []
+	for (var i = shotsLength; i--;) {
+		shots.push({
+			fired: false,
+			x: 0,
+			y: 0,
+			vx: 0,
+			vy: 0,
+			a: 0,
+		})
+	}
+}
+
 function generateStars() {
-	starsLength = 100
+	starsLength = 150
 	stars = []
-	var max = M.sqrt(1 + yMax*yMax)
+	var max = M.sqrt(1 + yMax*yMax) * 1.3
 	for (var i = starsLength; i--;) {
 		stars.push({
 			r: worldR + M.random() * (max - worldR),
@@ -518,6 +705,7 @@ function resize() {
 	}
 
 	generateStars()
+	generateShots()
 }
 
 function calculateSpriteRects() {
@@ -551,7 +739,8 @@ function calculateSpriteRects() {
 			NAUT_WALKR5, {/*naut_walkr5*/x:166,y:1,w:7,h:15},
 			NAUT_WALKR6, {/*naut_walkr6*/x:155,y:54,w:8,h:15},
 			NAUT_WALKR7, {/*naut_walkr7*/x:144,y:18,w:9,h:16},
-			STAR, {/*star*/x:175,y:18,w:1,h:1},
+			SHOT, {/*shot*/x:175,y:18,w:6,h:1},
+			STAR, {/*star*/x:175,y:21,w:1,h:1},
 			WORLD, {/*world*/x:1,y:1,w:125,h:125},
 		],
 		positions = [],
