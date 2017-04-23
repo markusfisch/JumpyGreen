@@ -193,14 +193,14 @@ function drawButtons() {
 	drawSprite(sprites[BUTTON], buttonUpX, buttonY, M.PI2)
 }
 
-function nextLevel() {
+function nextLevel(sec) {
 	if (restartTimer != null) {
 		return
 	}
 	restartTimer = setTimeout(function() {
 		initLevel(++level)
 		restartTimer = null
-	}, 2000)
+	}, sec)
 }
 
 function drawShots() {
@@ -248,6 +248,8 @@ function drawShots() {
 				player.r += .02
 				player.vy = 0
 				s.fired = false
+				level = 0
+				nextLevel(5000)
 			}
 		}
 	}
@@ -397,7 +399,7 @@ function drawEntities() {
 	}
 
 	if (allClear && !restartTimer) {
-		nextLevel()
+		nextLevel(2000)
 	}
 
 	if (worldY != 0) {
