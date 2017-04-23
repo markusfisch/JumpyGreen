@@ -140,70 +140,11 @@ var M = Math,
 	worldY,
 	worldR,
 	worldA,
-	level = 0,
-	levels = [
-		function() {
-			entities = [
-				player = createAlien(M.PI * .5),
-				createNaut(2.3),
-				createNaut(3.2),
-			]
-			entitiesLength = entities.length
-		}
-	]
+	gravity,
+	jumpPower,
+	level = 12
 
 M.TAU = M.TAU || M.PI * 2
-
-function createWalkingEntity(angle, idle, walkLeft, walkRight) {
-	var idleLength = idle.length,
-		walkLeftLength = walkLeft.length,
-		walkRightLength = walkRight.length
-	return {
-		a: angle,
-		walking: 0,
-		frame: 0,
-		last: 0,
-		xm: 1,
-		sprite: function() {
-			var w = this.walking,
-				f = w != 0 ? 100 : 250
-			if (now - this.last > f) {
-				++this.frame
-				this.last = now
-			}
-			if (w > 0) {
-				if (walkLeftLength == 0) {
-					this.xm = -1
-					return walkRight[this.frame % walkRightLength]
-				} else {
-					return walkLeft[this.frame % walkLeftLength]
-				}
-			} else if (w < 0) {
-				this.xm = 1
-				return walkRight[this.frame % walkRightLength]
-			} else {
-				return idle[this.frame % idleLength]
-			}
-		}
-	}
-}
-
-function createAlien(angle) {
-	return createWalkingEntity(angle,
-		[ALIEN_IDLE0, ALIEN_IDLE1],
-		[],
-		[ALIEN_WALK0, ALIEN_WALK1, ALIEN_WALK2, ALIEN_WALK3,
-			ALIEN_WALK4, ALIEN_WALK5, ALIEN_WALK6, ALIEN_WALK7])
-}
-
-function createNaut(angle) {
-	return createWalkingEntity(angle,
-		[NAUT_IDLE],
-		[NAUT_WALKL0, NAUT_WALKL1, NAUT_WALKL2, NAUT_WALKL3,
-			NAUT_WALKL4, NAUT_WALKL5, NAUT_WALKL6, NAUT_WALKL7],
-		[NAUT_WALKR0, NAUT_WALKR1, NAUT_WALKR2, NAUT_WALKR3,
-			NAUT_WALKR4, NAUT_WALKR5, NAUT_WALKR6, NAUT_WALKR7])
-}
 
 function drawSprite(sprite, x, y, a, xm, ym) {
 	gl.bindBuffer(gl.ARRAY_BUFFER, texturePositionBuffer)
@@ -241,15 +182,72 @@ function drawSprite(sprite, x, y, a, xm, ym) {
 }
 
 function drawEntities() {
+	var bump = false
+
 	for (var i = entitiesLength; i--;) {
 		var e = entities[i],
-			a = (player === e ? 0 : worldA) + e.a
+			isPlayer = e === player,
+			r = worldR,
+			a = (isPlayer ? 0 : worldA) + e.a
+
+		if (e.vy != 0) {
+			e.vy -= gravity * factor
+			e.r += e.vy
+			if (e.r < 0) {
+				e.vy = e.r = 0
+				if (isPlayer) {
+					worldY += -.1
+					bump = true
+				}
+			} else {
+				r += e.r
+			}
+		} else if (e.r > 0) {
+			e.floating = true
+			if (e.lost) {
+				e.r += gravity * factor
+				e.rotation += e.tumble
+			} else {
+				e.r -= gravity * factor
+			}
+			if (e.r < 0) {
+				e.r = 0
+				e.floating = false
+			} else {
+				r += e.r
+			}
+		}
+
 		drawSprite(
 			sprites[e.sprite()],
-			worldX + worldR * M.cos(a),
-			worldY + worldR * M.sin(a),
-			a,
+			worldX + r * M.cos(a),
+			worldY + r * M.sin(a),
+			a + e.rotation,
 			e.xm)
+	}
+
+	if (bump) {
+		for (var i = entitiesLength; i--;) {
+			var e = entities[i]
+			if (e !== player && !e.lost) {
+				var a = (((worldA + e.a) % M.TAU) + M.TAU) % M.TAU,
+					b = player.a + M.PI,
+					d = M.abs(b - a)
+				d = (M.PI - M.min(d, M.TAU - d)) / M.PI
+				if (d > .85) {
+					e.lost = true
+					e.tumble = M.random() * .2 - .1
+				}
+				e.r = d * .2
+			}
+		}
+	}
+
+	if (worldY != 0) {
+		worldY += gravity
+		if (worldY > 0) {
+			worldY = 0
+		}
 	}
 }
 
@@ -303,8 +301,8 @@ function input() {
 		player.walking = 0
 	}
 
-	if (keysDown[38]) {
-		//jump(power)
+	if (keysDown[38] && player.vy == 0) {
+		player.vy = jumpPower
 	}
 }
 
@@ -376,45 +374,92 @@ function keyDown(event) {
 	setKey(event, true)
 }
 
-function scale(sprite) {
-	var size = sprite.size * scaleFactor
-	sprite.w = size
-	sprite.h = size * sprite.aspect
-}
+function createEntity(
+		angle,
+		distance,
+		idle,
+		walkLeft,
+		walkRight,
+		balancing,
+		floating) {
+	var idleLength = idle.length,
+		walkLeftLength = walkLeft.length,
+		walkRightLength = walkRight.length,
+		balancingLength = balancing.length,
+		floatingLength = floating.length
+	return {
+		a: angle,
+		r: distance,
+		vy: 0,
+		rotation: 0,
+		walking: 0,
+		frame: 0,
+		last: 0,
+		xm: 1,
+		sprite: function() {
+			var w = this.walking,
+				f = w != 0 ? 100 : 250
+			if (now - this.last > f) {
+				++this.frame
+				this.last = now
+			}
 
-function compileShader(src, type) {
-	var shader = gl.createShader(type)
-	gl.shaderSource(shader, src)
-	gl.compileShader(shader)
-	return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null
-}
+			if (this.floating) {
+				return floating[this.frame % floatingLength]
+			} else if (worldY != 0 && player !== this) {
+				return balancing[this.frame % balancingLength]
+			} else if (this.vy != 0) {
+				// just take the first walking sprite
+				this.frame = 0
+				if (w == 0) {
+					w = -1
+				}
+			}
 
-function linkProgram(vs, fs) {
-	var p
-	if ((p = gl.createProgram())) {
-		gl.attachShader(p, vs)
-		gl.attachShader(p, fs)
-
-		gl.linkProgram(p)
-
-		if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-			gl.deleteProgram(p)
-			p = null
+			if (w > 0) {
+				if (walkLeftLength == 0) {
+					this.xm = -1
+					return walkRight[this.frame % walkRightLength]
+				} else {
+					return walkLeft[this.frame % walkLeftLength]
+				}
+			} else if (w < 0) {
+				this.xm = 1
+				return walkRight[this.frame % walkRightLength]
+			} else {
+				return idle[this.frame % idleLength]
+			}
 		}
 	}
-	return p
 }
 
-function buildProgram(vertexSource, fragmentSource) {
-	var p, vs, fs
-	if ((vs = compileShader(vertexSource, gl.VERTEX_SHADER))) {
-		if ((fs = compileShader(fragmentSource, gl.FRAGMENT_SHADER))) {
-			p = linkProgram(vs, fs)
-			gl.deleteShader(fs)
-		}
-		gl.deleteShader(vs)
+function createNaut(angle) {
+	return createEntity(angle, M.min(1, yMax) * .5,
+		[NAUT_IDLE],
+		[NAUT_WALKL0, NAUT_WALKL1, NAUT_WALKL2, NAUT_WALKL3,
+			NAUT_WALKL4, NAUT_WALKL5, NAUT_WALKL6, NAUT_WALKL7],
+		[NAUT_WALKR0, NAUT_WALKR1, NAUT_WALKR2, NAUT_WALKR3,
+			NAUT_WALKR4, NAUT_WALKR5, NAUT_WALKR6, NAUT_WALKR7],
+		[NAUT_BALANCING],
+		[NAUT_FLOATING])
+}
+
+function createAlien(angle) {
+	return createEntity(angle, 0,
+		[ALIEN_IDLE0, ALIEN_IDLE1],
+		[],
+		[ALIEN_WALK0, ALIEN_WALK1, ALIEN_WALK2, ALIEN_WALK3,
+			ALIEN_WALK4, ALIEN_WALK5, ALIEN_WALK6, ALIEN_WALK7],
+		[],
+		[])
+}
+
+function initLevel(nauts) {
+	entities = [player = createAlien(M.PI * .5)]
+	for (var a = M.random() * M.TAU, i = nauts; i--; a += M.TAU / nauts) {
+		entities.push(createNaut(a))
 	}
-	return p
+	entitiesLength = entities.length
 }
 
 function generateStars() {
@@ -427,6 +472,12 @@ function generateStars() {
 			a: M.random() * M.TAU,
 		})
 	}
+}
+
+function scale(sprite) {
+	var size = sprite.size * scaleFactor
+	sprite.w = size
+	sprite.h = size * sprite.aspect
 }
 
 function resize() {
@@ -446,6 +497,9 @@ function resize() {
 
 	worldX = worldY = worldA = 0
 	worldR = scaleFactor * sprites[WORLD].size
+
+	gravity = scaleFactor * .5
+	jumpPower = scaleFactor * 6
 
 	resolution = new FA([width, height])
 
@@ -610,7 +664,7 @@ function start() {
 	W.onresize = resize
 	resize()
 
-	levels[level]()
+	initLevel(level)
 
 	D.onkeydown = keyDown
 	D.onkeyup = keyUp
@@ -630,6 +684,41 @@ function start() {
 
 	last = Date.now() - 16
 	run()
+}
+
+function compileShader(src, type) {
+	var shader = gl.createShader(type)
+	gl.shaderSource(shader, src)
+	gl.compileShader(shader)
+	return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null
+}
+
+function linkProgram(vs, fs) {
+	var p
+	if ((p = gl.createProgram())) {
+		gl.attachShader(p, vs)
+		gl.attachShader(p, fs)
+
+		gl.linkProgram(p)
+
+		if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+			gl.deleteProgram(p)
+			p = null
+		}
+	}
+	return p
+}
+
+function buildProgram(vertexSource, fragmentSource) {
+	var p, vs, fs
+	if ((vs = compileShader(vertexSource, gl.VERTEX_SHADER))) {
+		if ((fs = compileShader(fragmentSource, gl.FRAGMENT_SHADER))) {
+			p = linkProgram(vs, fs)
+			gl.deleteShader(fs)
+		}
+		gl.deleteShader(vs)
+	}
+	return p
 }
 
 function getContext() {
