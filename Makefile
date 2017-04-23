@@ -15,13 +15,13 @@ live: $(ATLAS)
 
 $(ATLAS): $(SPRITES)
 	cd $(HTDOCS) && \
-		MAX_SIZE=1024 \
-		MIN_SIZE=1024 \
-			MARGIN=2 \
-			EXPAND='tile_*' \
-			mkatlas ../$(SPRITES) | \
+		MAX_SIZE=256 \
+		MIN_SIZE=256 \
+		MARGIN=1 \
+		mkatlas ../$(SPRITES) | \
 		patchatlas index.html
-	convert $(ATLAS) \( +clone -alpha Extract \) \
-		-channel RGB \
-		-compose Multiply \
-		-composite $(ATLAS)
+	convert $(HTDOCS)/atlas.png \
+		-background black \
+		-alpha Remove $(HTDOCS)/atlas.png \
+		-compose Copy_Opacity \
+		-composite $(HTDOCS)/atlas.png

@@ -55,10 +55,10 @@ uniform vec2 resolution;
 uniform sampler2D texture;
 
 void main() {
-	vec2 st = gl_FragCoord.xy / resolution.xy;
-	float brightness = (st.x + st.y) / 2.;
+	//vec2 st = gl_FragCoord.xy / resolution.xy;
+	//float brightness = (st.x + st.y) / 2.;
 	gl_FragColor =
-		vec4(brightness, brightness, brightness, 1.) *
+		//vec4(brightness, brightness, brightness, 1.) *
 		texture2D(texture, textureUV.st).rgba;
 }
 
@@ -71,7 +71,37 @@ var M = Math,
 	D = document,
 	W = window,
 	FA = Float32Array,
-	ROCK = 0,
+	ALIEN_IDLE0 = 0,
+	ALIEN_IDLE1 = 1,
+	ALIEN_WALK0 = 2,
+	ALIEN_WALK1 = 3,
+	ALIEN_WALK2 = 4,
+	ALIEN_WALK3 = 5,
+	ALIEN_WALK4 = 6,
+	ALIEN_WALK5 = 7,
+	ALIEN_WALK6 = 8,
+	ALIEN_WALK7 = 9,
+	NAUT_BALANCING = 10,
+	NAUT_FLOATING = 11,
+	NAUT_IDLE = 12,
+	NAUT_WALKL0 = 13,
+	NAUT_WALKL1 = 14,
+	NAUT_WALKL2 = 15,
+	NAUT_WALKL3 = 16,
+	NAUT_WALKL4 = 17,
+	NAUT_WALKL5 = 18,
+	NAUT_WALKL6 = 19,
+	NAUT_WALKL7 = 20,
+	NAUT_WALKR0 = 21,
+	NAUT_WALKR1 = 22,
+	NAUT_WALKR2 = 23,
+	NAUT_WALKR3 = 24,
+	NAUT_WALKR4 = 25,
+	NAUT_WALKR5 = 26,
+	NAUT_WALKR6 = 27,
+	NAUT_WALKR7 = 28,
+	STAR = 29,
+	WORLD = 30,
 	atlas,
 	sprites = [],
 	gl,
@@ -100,9 +130,82 @@ var M = Math,
 	pointersLength,
 	pointersX = [],
 	pointersY = [],
-	keysDown = []
+	keysDown = [],
+	starsLength,
+	stars,
+	entitiesLength,
+	entities,
+	player,
+	worldX,
+	worldY,
+	worldR,
+	worldA,
+	level = 0,
+	levels = [
+		function() {
+			entities = [
+				player = createAlien(M.PI * .5),
+				createNaut(2.3),
+				createNaut(3.2),
+			]
+			entitiesLength = entities.length
+		}
+	]
 
-function drawSprite(sprite, x, y, a) {
+M.TAU = M.TAU || M.PI * 2
+
+function createWalkingEntity(angle, idle, walkLeft, walkRight) {
+	var idleLength = idle.length,
+		walkLeftLength = walkLeft.length,
+		walkRightLength = walkRight.length
+	return {
+		a: angle,
+		walking: 0,
+		frame: 0,
+		last: 0,
+		xm: 1,
+		sprite: function() {
+			var w = this.walking,
+				f = w != 0 ? 100 : 250
+			if (now - this.last > f) {
+				++this.frame
+				this.last = now
+			}
+			if (w > 0) {
+				if (walkLeftLength == 0) {
+					this.xm = -1
+					return walkRight[this.frame % walkRightLength]
+				} else {
+					return walkLeft[this.frame % walkLeftLength]
+				}
+			} else if (w < 0) {
+				this.xm = 1
+				return walkRight[this.frame % walkRightLength]
+			} else {
+				return idle[this.frame % idleLength]
+			}
+		}
+	}
+}
+
+function createAlien(angle) {
+	return createWalkingEntity(angle,
+		[ALIEN_IDLE0, ALIEN_IDLE1],
+		[],
+		[ALIEN_WALK0, ALIEN_WALK1, ALIEN_WALK2, ALIEN_WALK3,
+			ALIEN_WALK4, ALIEN_WALK5, ALIEN_WALK6, ALIEN_WALK7])
+}
+
+function createNaut(angle) {
+	return createWalkingEntity(angle,
+		[NAUT_IDLE],
+		[NAUT_WALKL0, NAUT_WALKL1, NAUT_WALKL2, NAUT_WALKL3,
+			NAUT_WALKL4, NAUT_WALKL5, NAUT_WALKL6, NAUT_WALKL7],
+		[NAUT_WALKR0, NAUT_WALKR1, NAUT_WALKR2, NAUT_WALKR3,
+			NAUT_WALKR4, NAUT_WALKR5, NAUT_WALKR6, NAUT_WALKR7])
+}
+
+function drawSprite(sprite, x, y, a, xm, ym) {
 	gl.bindBuffer(gl.ARRAY_BUFFER, texturePositionBuffer)
 	gl.vertexAttribPointer(
 		texturePositionLoc,
@@ -112,16 +215,22 @@ function drawSprite(sprite, x, y, a) {
 		0,
 		sprite.index << 5)
 
-	var w = sprite.w,
-		h = sprite.h,
+	xm = xm || 1
+	ym = ym || 1
+
+	var w = sprite.w * xm,
+		h = sprite.h * ym,
 		sin = M.sin(a),
 		cos = M.cos(a)
 
-	transformation[0] = w * cos
-	transformation[1] = w * -sin
+	transformation[0] = w * sin
+	transformation[1] = w * -cos
 
-	transformation[3] = h * sin
-	transformation[4] = h * cos
+	transformation[3] = h * cos
+	transformation[4] = h * sin
+
+	transformation[6] = x
+	transformation[7] = y
 
 	gl.uniformMatrix3fv(
 		transformationLoc,
@@ -129,6 +238,32 @@ function drawSprite(sprite, x, y, a) {
 		transformation)
 
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+}
+
+function drawEntities() {
+	for (var i = entitiesLength; i--;) {
+		var e = entities[i],
+			a = (player === e ? 0 : worldA) + e.a
+		drawSprite(
+			sprites[e.sprite()],
+			worldX + worldR * M.cos(a),
+			worldY + worldR * M.sin(a),
+			a,
+			e.xm)
+	}
+}
+
+function drawStars() {
+	for (var i = starsLength; i--;) {
+		var star = stars[i],
+			r = star.r,
+			a = worldA + star.a
+		drawSprite(
+			sprites[STAR],
+			worldX + r * M.cos(a),
+			worldY + r * M.sin(a),
+			a)
+	}
 }
 
 function initFrame() {
@@ -155,6 +290,24 @@ function initFrame() {
 	gl.uniform1i(textureLoc, 0)
 }
 
+function input() {
+	var step = .0314
+
+	if (keysDown[37]) {
+		player.walking = step
+		worldA -= step
+	} else if (keysDown[39]) {
+		player.walking = -step
+		worldA += step
+	} else {
+		player.walking = 0
+	}
+
+	if (keysDown[38]) {
+		//jump(power)
+	}
+}
+
 function run() {
 	requestAnimationFrame(run)
 
@@ -162,8 +315,11 @@ function run() {
 	factor = (now - last) / 16
 	last = now
 
+	input()
 	initFrame()
-	drawSprite(sprites[ROCK], 0, 0, (now * .0005) % 6.283)
+	drawStars()
+	drawSprite(sprites[WORLD], worldX, worldY, worldA)
+	drawEntities()
 }
 
 function pageXToGl(x) {
@@ -261,6 +417,18 @@ function buildProgram(vertexSource, fragmentSource) {
 	return p
 }
 
+function generateStars() {
+	starsLength = 100
+	stars = []
+	var max = M.sqrt(1 + yMax*yMax)
+	for (var i = starsLength; i--;) {
+		stars.push({
+			r: worldR + M.random() * (max - worldR),
+			a: M.random() * M.TAU,
+		})
+	}
+}
+
 function resize() {
 	width = gl.canvas.clientWidth
 	height = gl.canvas.clientHeight
@@ -273,11 +441,13 @@ function resize() {
 	gl.canvas.height = height
 	gl.viewport(0, 0, width, height)
 
-	resolution = new FA([width, height])
+	var ref = sprites[WORLD].size * 1.5
+	scaleFactor = .45 / halfWidth * M.min(width / ref, height / ref)
 
-	var ref = sprites[ROCK].size
-	scaleFactor = .45 / halfWidth *
-		M.min(width / 1.5 / ref, height / 1.5 / ref)
+	worldX = worldY = worldA = 0
+	worldR = scaleFactor * sprites[WORLD].size
+
+	resolution = new FA([width, height])
 
 	perspective = new FA([
 		1, 0, 0,
@@ -292,11 +462,43 @@ function resize() {
 	for (var id in sprites) {
 		scale(sprites[id])
 	}
+
+	generateStars()
 }
 
 function calculateSpriteRects() {
 	var res = [
-			ROCK, {/*rock*/x:0,y:0,w:128,h:128},
+			ALIEN_IDLE0, {/*alien_idle0*/x:128,y:51,w:13,h:15},
+			ALIEN_IDLE1, {/*alien_idle1*/x:128,y:34,w:13,h:15},
+			ALIEN_WALK0, {/*alien_walk0*/x:144,y:1,w:10,h:15},
+			ALIEN_WALK1, {/*alien_walk1*/x:144,y:105,w:9,h:15},
+			ALIEN_WALK2, {/*alien_walk2*/x:165,y:36,w:8,h:15},
+			ALIEN_WALK3, {/*alien_walk3*/x:128,y:86,w:10,h:16},
+			ALIEN_WALK4, {/*alien_walk4*/x:128,y:104,w:10,h:15},
+			ALIEN_WALK5, {/*alien_walk5*/x:144,y:88,w:9,h:15},
+			ALIEN_WALK6, {/*alien_walk6*/x:165,y:18,w:8,h:15},
+			ALIEN_WALK7, {/*alien_walk7*/x:128,y:68,w:10,h:16},
+			NAUT_BALANCING, {/*naut_balancing*/x:128,y:1,w:14,h:15},
+			NAUT_FLOATING, {/*naut_floating*/x:128,y:18,w:14,h:14},
+			NAUT_IDLE, {/*naut_idle*/x:144,y:71,w:9,h:15},
+			NAUT_WALKL0, {/*naut_walkl0*/x:156,y:1,w:8,h:15},
+			NAUT_WALKL1, {/*naut_walkl1*/x:175,y:1,w:7,h:15},
+			NAUT_WALKL2, {/*naut_walkl2*/x:165,y:104,w:7,h:15},
+			NAUT_WALKL3, {/*naut_walkl3*/x:144,y:36,w:9,h:16},
+			NAUT_WALKL4, {/*naut_walkl4*/x:155,y:105,w:8,h:15},
+			NAUT_WALKL5, {/*naut_walkl5*/x:165,y:87,w:7,h:15},
+			NAUT_WALKL6, {/*naut_walkl6*/x:165,y:70,w:7,h:15},
+			NAUT_WALKL7, {/*naut_walkl7*/x:155,y:36,w:8,h:16},
+			NAUT_WALKR0, {/*naut_walkr0*/x:144,y:54,w:9,h:15},
+			NAUT_WALKR1, {/*naut_walkr1*/x:155,y:88,w:8,h:15},
+			NAUT_WALKR2, {/*naut_walkr2*/x:165,y:53,w:7,h:15},
+			NAUT_WALKR3, {/*naut_walkr3*/x:155,y:18,w:8,h:16},
+			NAUT_WALKR4, {/*naut_walkr4*/x:155,y:71,w:8,h:15},
+			NAUT_WALKR5, {/*naut_walkr5*/x:166,y:1,w:7,h:15},
+			NAUT_WALKR6, {/*naut_walkr6*/x:155,y:54,w:8,h:15},
+			NAUT_WALKR7, {/*naut_walkr7*/x:144,y:18,w:9,h:16},
+			STAR, {/*star*/x:175,y:18,w:1,h:1},
+			WORLD, {/*world*/x:1,y:1,w:125,h:125},
 		],
 		positions = [],
 		xf = 1 / atlas.width,
@@ -407,6 +609,8 @@ function start() {
 
 	W.onresize = resize
 	resize()
+
+	levels[level]()
 
 	D.onkeydown = keyDown
 	D.onkeyup = keyUp
