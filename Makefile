@@ -16,12 +16,12 @@ live: $(ATLAS)
 $(ATLAS): $(SPRITES)
 	cd $(HTDOCS) && \
 		MAX_SIZE=256 \
-		MIN_SIZE=256 \
-		MARGIN=1 \
-		mkatlas ../$(SPRITES) | \
+			MIN_SIZE=256 \
+			MARGIN=1 \
+			mkatlas ../$(SPRITES) | \
 		patchatlas index.html
-	convert $(HTDOCS)/atlas.png \
+	convert $(ATLAS) \
 		-background black \
-		-alpha Remove $(HTDOCS)/atlas.png \
+		-alpha Remove $(ATLAS) \
 		-compose Copy_Opacity \
-		-composite $(HTDOCS)/atlas.png
+		-composite $(ATLAS)
