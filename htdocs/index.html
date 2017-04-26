@@ -333,14 +333,17 @@ function drawEntities() {
 			a += worldA
 
 			if (e.r === 0 && !e.floating) {
-				e.walking = 0
+				var sinceLastFire = now - e.lastFire
+				if (sinceLastFire > 200) {
+					e.walking = 0
+				}
 				var na = normalizeAngle(a),
 					seesAlien = angleDiff(na, player.a) < 1.2
 				if (seesAlien || e.hasSeenAlien) {
 					var d = na - player.a,
 						s = d > 0 ? -step : step
 					if (!player.lost && seesAlien &&
-							now - e.lastFire > 500) {
+							sinceLastFire > 500) {
 						e.hasSeenAlien = true
 						e.walking = s
 						e.lastFire = now
