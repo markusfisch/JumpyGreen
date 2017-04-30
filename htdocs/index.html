@@ -338,20 +338,26 @@ function drawEntities() {
 					e.walking = 0
 				}
 				var na = normalizeAngle(a),
-					seesAlien = angleDiff(na, player.a) < 1.2
+					absD = angleDiff(na, player.a),
+					seesAlien = absD < 1.2
 				if (seesAlien || e.hasSeenAlien) {
 					var d = na - player.a,
-						s = d > 0 ? -step : step
+						s = (d > 0 ? -step : step) * .6
 					if (!player.lost && seesAlien &&
 							sinceLastFire > 500) {
 						e.hasSeenAlien = true
-						e.walking = s
-						e.lastFire = now
-						shoot = true
+						if (absD < .2) {
+							e.walking = -s
+							e.a -= s
+						} else {
+							e.walking = s
+							e.lastFire = now
+							shoot = true
+						}
 					}
-					if (M.abs(d) > .3) {
+					if (M.abs(d) > .3 + 1 / i) {
 						e.walking = s
-						e.a += s * .6
+						e.a += s
 					}
 				}
 			}
