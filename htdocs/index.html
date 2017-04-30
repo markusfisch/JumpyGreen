@@ -274,7 +274,7 @@ function angleDiff(a, b) {
 function realizePush() {
 	for (var i = entitiesLength; i--;) {
 		var e = entities[i]
-		if (e !== player && !e.lost) {
+		if (e !== player && !e.lost && e.r < .1) {
 			var a = normalizeAngle(worldA + e.a),
 				d = angleDiff(a, player.a + M.PI)
 			d = (M.PI - d) / M.PI
