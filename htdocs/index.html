@@ -193,6 +193,14 @@ function drawButtons() {
 	drawSprite(sprites[BUTTON], buttonUpX, buttonY, M.PI2)
 }
 
+function killPlayer() {
+	player.lost = true
+	player.tumble = .1
+	player.r += .02
+	player.vy = 0
+	restartAfter(5000)
+}
+
 function restartNow() {
 	if (restartTimer != null) {
 		clearTimeout(restartTimer)
@@ -240,23 +248,15 @@ function drawShots() {
 			continue
 		}
 
-		drawSprite(
-			sprites[SHOT],
-			x,
-			y,
-			worldA + s.a)
+		drawSprite(sprites[SHOT], x, y, worldA + s.a)
 
 		if (!player.lost) {
 			var dx = px - x,
 				dy = py - y,
 				d = dx*dx + dy*dy
 			if (d < .0005) {
-				player.lost = true
-				player.tumble = .1
-				player.r += .02
-				player.vy = 0
 				s.fired = false
-				restartAfter(5000)
+				killPlayer()
 			}
 		}
 	}
@@ -701,11 +701,11 @@ function generateShots() {
 function generateStars() {
 	starsLength = 150
 	stars = []
-	var max = M.sqrt(1 + yMax*yMax) * 1.3
+	var max = M.sqrt(1 + yMax*yMax) * 1.1 - worldR
 	for (var i = starsLength; i--;) {
 		stars.push({
-			r: worldR + M.random() * (max - worldR),
-			a: M.random() * M.TAU,
+			r: worldR + M.random() * max,
+			a: M.random() * M.TAU
 		})
 	}
 }
