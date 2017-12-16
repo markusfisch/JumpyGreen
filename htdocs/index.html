@@ -351,9 +351,9 @@ function drawEntities() {
 							e.a -= s
 						} else {
 							e.walking = s
-							e.lastFire = now
-							shoot = true
 						}
+						e.lastFire = now
+						shoot = true
 					}
 					if (M.abs(d) > .3 + 1 / i) {
 						e.walking = s
@@ -728,7 +728,7 @@ function resize() {
 
 	halfWidth = width >> 1
 	halfHeight = height >> 1
-	yMax = height/width
+	yMax = height / width
 
 	gl.canvas.width = width
 	gl.canvas.height = height
