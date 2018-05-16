@@ -2,10 +2,16 @@
 <html>
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
+<meta name="theme-color" content="#111"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+<meta name="msapplication-navbutton-color" content="#111"/>
+<link rel="shortcut icon" href="favicon.ico"/>
+<link rel="apple-touch-icon-precomposed" href="icon_ios.png"/>
+<link rel="manifest" href="manifest.json"/>
 <title>Jumpy Green</title>
 <style>
-
 html, body {
 	margin: 0; padding: 0;
 	background: #000;
@@ -16,13 +22,11 @@ canvas {
 	width: 100%;
 	height: 100%;
 }
-
 </style>
 </head>
 <body>
 <canvas id="Canvas">Sorry, this browser cannot render this content.</canvas>
 <script id="VertexShader" type="x-shader/x-vertex">
-
 attribute vec2 vertexPosition;
 attribute vec2 texturePosition;
 
@@ -39,10 +43,8 @@ void main() {
 
 	textureUV = texturePosition;
 }
-
 </script>
 <script id="FragmentShader" type="x-shader/x-fragment">
-
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
@@ -56,10 +58,8 @@ uniform sampler2D texture;
 void main() {
 	gl_FragColor = texture2D(texture, textureUV.st).rgba;
 }
-
 </script>
 <script>
-
 'use strict'
 
 var M = Math,
@@ -179,11 +179,7 @@ function drawSprite(sprite, x, y, a, xm, ym) {
 	transformation[6] = x
 	transformation[7] = y
 
-	gl.uniformMatrix3fv(
-		transformationLoc,
-		gl.FALSE,
-		transformation)
-
+	gl.uniformMatrix3fv(transformationLoc, gl.FALSE, transformation)
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 }
 
@@ -194,7 +190,7 @@ function drawButtons() {
 }
 
 function killPlayer() {
-	player.lost = true
+	player.lost = now
 	player.tumble = .1
 	player.r += .02
 	player.vy = 0
@@ -485,7 +481,8 @@ function contains(x1, y1, x2, y2, size) {
 
 function input() {
 	if (player.lost) {
-		if (pointersLength > 0 || keysDown[32]) {
+		if (player.lost + 3000 < now &&
+				(pointersLength > 0 || keysDown[32])) {
 			restartNow()
 		}
 		return
@@ -613,7 +610,7 @@ function createEntity(
 		lastFrame: 0,
 		lastFire: 0,
 		lastJump: 0,
-		lost: false,
+		lost: null,
 		xm: 1,
 		sprite: function() {
 			var w = this.walking,
@@ -893,7 +890,6 @@ function createTextureFrom(image) {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 
-	gl.generateMipmap(gl.TEXTURE_2D)
 	gl.bindTexture(gl.TEXTURE_2D, null)
 
 	return id
@@ -997,7 +993,6 @@ function load() {
 }
 
 W.onload = load
-
 </script>
 </body>
 </html>
