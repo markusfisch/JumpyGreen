@@ -154,12 +154,7 @@ M.PI2 = M.PI2 || M.PI / 2
 
 function drawSprite(sprite, x, y, a, xm, ym) {
 	gl.bindBuffer(gl.ARRAY_BUFFER, texturePositionBuffer)
-	gl.vertexAttribPointer(
-		texturePositionLoc,
-		2,
-		gl.FLOAT,
-		gl.FALSE,
-		0,
+	gl.vertexAttribPointer(texturePositionLoc, 2, gl.FLOAT, gl.FALSE, 0,
 		sprite.index << 5)
 
 	xm = xm || 1
@@ -449,10 +444,7 @@ function initFrame() {
 		0,
 		0)
 
-	gl.uniformMatrix3fv(
-		perspectiveLoc,
-		gl.FALSE,
-		perspective)
+	gl.uniformMatrix3fv(perspectiveLoc, gl.FALSE, perspective)
 
 	gl.activeTexture(gl.TEXTURE0)
 	gl.bindTexture(gl.TEXTURE_2D, texture)
@@ -877,12 +869,7 @@ function createTextureFrom(image) {
 	}
 
 	gl.bindTexture(gl.TEXTURE_2D, id)
-	gl.texImage2D(
-		gl.TEXTURE_2D,
-		0,
-		gl.RGBA,
-		gl.RGBA,
-		gl.UNSIGNED_BYTE,
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,
 		image)
 
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
